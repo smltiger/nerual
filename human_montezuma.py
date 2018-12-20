@@ -19,11 +19,8 @@ print('now reward:',reward)
 
 from pynput import keyboard
 
-def store_step(s, reward):
-    s = skimage.color.rgb2gray(s)
-    s = feature.canny(s)
-    s = s.reshape(1,s.shape[0],s.shape[1],1)
-    D.append([s,reward])
+def store_step(a):
+    D.append(a)
 
 def save_step():
     with open('Montezuma.pickle', 'wb') as f:
@@ -34,61 +31,53 @@ def on_press(key):
     global env,record,reward
     try:
         if key.char == 'w':
-            s,r,done,info=env.step(2)
+            a = 2
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[2] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 's':
-            s,r,done,info=env.step(5)
+            a = 5
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[5] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'a':
-            s,r,done,info=env.step(4)
+            a = 4
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[4] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'd':
-            s,r,done,info=env.step(3)
+            a = 3
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[3] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'j':
-            s,r,done,info=env.step(12)
+            a = 12
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[6] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'k':
-            s,r,done,info=env.step(11)
+            a = 11
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[7] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'i':
-            s,r,done,info=env.step(1)
+            a = 1
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[1] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'o':
-            s,r,done,info=env.step(0)
+            a = 0
+            s,r,done,info=env.step(a)
             env.render()
             if record:
-                a = np.zeros(8)
-                a[0] = reward
-                store_step(s,a)
+                store_step(a)
         elif key.char == 'l':
             s,r,done,info=env.step(0)
             env.render()

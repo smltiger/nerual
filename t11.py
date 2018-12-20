@@ -48,36 +48,25 @@ def get_reward(params, env, human_data,seed_and_id=None, render=False):
         model.update_weights(params)
 
     ep_r = 0.
-    if render:
-        # run episode
-        s = env.reset()
+    # run episode
+    s = env.reset()
+    s = skimage.color.rgb2gray(s)
+    s = feature.canny(s)
+    s = s.reshape(1,s.shape[0],s.shape[1],1)
+    done = False
+    action = [0,1,2,3,4,5,11,12]
+    
+    for a in human_data:
+        predict = model.model.predict(s)
+        action_index = np.argmax(predict)
+        if action[action_index] != a:
+            break
+        s, r, done, info = env.step(action[action_index])
         s = skimage.color.rgb2gray(s)
         s = feature.canny(s)
         s = s.reshape(1,s.shape[0],s.shape[1],1)
-        done = False
-        action = [0,1,2,3,4,5,11,12]
-        
-        for step in range(MAX_STEP):
-            predict = model.model.predict(s)
-            action_index = np.argmax(predict)
-            s, r, done, info = env.step(action[action_index])
-            s = skimage.color.rgb2gray(s)
-            s = feature.canny(s)
-            s = s.reshape(1,s.shape[0],s.shape[1],1)
-            if render: env.render()
-            ep_r += r
-            if info['ale.lives'] < 6:
-                ep_r -= 1
-                break
-
-    minibatch = random.sample(human_data, BATCH)
-    state,reward = zip(*minibatch)
-    state = np.concatenate(state)
-    target = model.model.predict(state)
-    tmp = np.argmax(target,axis=1)
-    from keras.utils import to_categorical
-    tmp = to_categorical(tmp,num_classes=8)
-    ep_r += np.sum(tmp*reward)
+        if render: env.render()
+        ep_r += 1
         
     return ep_r
 
