@@ -37,7 +37,7 @@ class SGD(object):                      # optimizer with momentum
         self.v = self.momentum * self.v + (1. - self.momentum) * gradients
         return self.lr * self.v
 
-def get_reward(params, env, human_data,seed_and_id=None, render=False):
+def get_reward(params, env, state,seed_and_id=None, render=False):
     global model
 
     # perturb parameters using seed
@@ -55,18 +55,30 @@ def get_reward(params, env, human_data,seed_and_id=None, render=False):
     s = s.reshape(1,s.shape[0],s.shape[1],1)
     done = False
     action = [0,1,2,3,4,5,11,12]
-    
-    for a in human_data:
+
+    env.reset()
+    env.env.restore_full_state(state)
+    info = None
+
+    for i in range(MAX_STEP):
         predict = model.model.predict(s)
         action_index = np.argmax(predict)
-        if action[action_index] != a:
-            break
-        s, r, done, info = env.step(action[action_index])
+        s, r, done, info_ = env.step(action[action_index])
         s = skimage.color.rgb2gray(s)
         s = feature.canny(s)
         s = s.reshape(1,s.shape[0],s.shape[1],1)
         if render: env.render()
-        ep_r += 1
+        if info is None:
+            info = info_
+        if info_['ale.lives'] < info['ale.lives']:
+            ep_r -= 100
+            break
+        if r > 0:
+            ep_r += r
+            break
+        if r == 0: r = -1
+        ep_r += r
+        info = info_
         
     return ep_r
 
@@ -80,21 +92,21 @@ class ESModel():
         model.add(Convolution2D(64,(7,7),strides=(3,3),padding='same',input_shape=(210,160,1),use_bias=False))
         model.add(Activation('tanh'))
 
-        model.add(Convolution2D(64,(5,5),strides=(3,3),padding='same',use_bias=False))
+        model.add(Convolution2D(128,(5,5),strides=(3,3),padding='same',use_bias=False))
         model.add(Activation('tanh'))
 
         model.add(Convolution2D(128,(4,4),strides=(2,2),padding='same',use_bias=False))
         model.add(Activation('tanh'))
         
-        model.add(Convolution2D(64,(4,4),strides=(2,2),padding='same',use_bias=False))
+        model.add(Convolution2D(128,(4,4),strides=(2,2),padding='same',use_bias=False))
         model.add(Activation('tanh'))
 
-        model.add(Convolution2D(32,(3,3),strides=(1,1),padding='same',use_bias=False))
+        model.add(Convolution2D(64,(3,3),strides=(1,1),padding='same',use_bias=False))
         model.add(Activation('tanh'))
 
         model.add(Flatten())
             
-        model.add(Dense(256,use_bias=False))
+        model.add(Dense(512,use_bias=False))
         model.add(Activation('tanh'))
         model.add(Dense(8,use_bias=False))
 
@@ -129,12 +141,12 @@ class ESModel():
         self.model.set_weights(w)
 
 
-def train(params, env, human_data, optimizer, utility, pool):
+def train(params, env, state, optimizer, utility, pool):
     # pass seed instead whole noise matrix to parallel will save your time
     noise_seed = np.random.randint(0, 2 ** 32 - 1, size=N_KID, dtype=np.uint32).repeat(2)    # mirrored sampling
     
     # distribute training in parallel
-    jobs = [pool.apply_async(get_reward, (params, env,human_data,
+    jobs = [pool.apply_async(get_reward, (params, env, state,
                                           [noise_seed[k_id], k_id],False)) for k_id in range(N_KID*2)]
     
     rewards = np.array([j.get() for j in jobs])
@@ -165,16 +177,18 @@ K.set_session(sess)
 N_KID = 6                  # half of the training population
 N_GENERATION = 5000000         # training step
 LR = .03                    # learning rate
-SIGMA = .03                 # mutation strength or step size
+SIGMA = .04                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
-MAX_STEP = 300
+MAX_STEP = 130
 GAME = 'Montezuma'
 BATCH = 128
 
 model = ESModel()
+
 if os.path.isfile(GAME+'.h5'):
     print ("Now we load weight")
     model.model.load_weights(GAME+".h5")
+
 
 #主程序
 if __name__ == "__main__":
@@ -185,8 +199,8 @@ if __name__ == "__main__":
     utility = util_ / util_.sum() - 1 / base
     # training
     env = gym.make('MontezumaRevenge-v0')
-    with open(GAME+'.pickle', 'rb') as f:
-        human_data = pickle.load(f)
+    with open('1.pickle', 'rb') as f:
+        state = pickle.load(f)
         f.close()
 
     pool = mp.Pool(processes=N_CORE)
@@ -195,11 +209,11 @@ if __name__ == "__main__":
         print('*******Gen:',g)
         t0 = time.time()
         optimizer = SGD(model.params, LR)
-        gradients,kid_rewards = train(model.params,env,human_data,optimizer, utility, pool)
+        gradients,kid_rewards = train(model.params,env,state,optimizer, utility, pool)
         model.params += gradients
         model.update_weights(model.params)
         # test trained net without noise
-        net_r = get_reward(model.params, env,human_data, None,render=True)
+        net_r = get_reward(model.params, env,state, None,render=True)
         mar = net_r if mar is None else 0.9 * mar + 0.1 * net_r       # moving average reward
         print(
             '| Net_R: %.1f' % mar,
@@ -207,6 +221,6 @@ if __name__ == "__main__":
             '| Gen_T: %.2f' % (time.time() - t0),
             '| test reward: %.5f' % net_r)
 
-        if g % 100 == 0:
+        if g >0 and g % 100 == 0:
             print('saving model...')
             model.model.save_weights(GAME+".h5", overwrite=True)

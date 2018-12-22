@@ -97,6 +97,10 @@ def on_press(key):
             env.reset()
             env.step(0)
             env.render()
+        elif key.char == '1':
+            state = env.env.clone_full_state()
+            with open('1.pickle','wb') as state_file:
+                pickle.dump(state, state_file)
     except AttributeError:
         print('special key {0} pressed'.format(key))
 
